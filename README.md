@@ -56,7 +56,8 @@ the user types are parsed and validated before touching state.
 
 ## Installation
 
-Requires Node.js 18+.
+Requires Node.js 22.22+ (the test tooling needs it; the app itself runs on any
+modern browser).
 
 ```bash
 npm install
@@ -94,6 +95,7 @@ npm test
 - No secrets in source; the app makes no network requests
 - Reminder sharing opens WhatsApp with a pre-filled message — nothing is sent
   without an explicit user action
+- CSV export neutralizes spreadsheet formula prefixes to prevent CSV injection
 
 ## Limitations
 
@@ -105,7 +107,6 @@ npm test
 ## Roadmap
 
 - Receipt sharing as a printable/viewable page
-- CSV export for accountants
 - Multi-book support (separate shop / personal)
 - Voice input for amounts in low-literacy contexts
 
