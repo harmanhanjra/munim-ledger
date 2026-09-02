@@ -33,6 +33,7 @@ describe('i18n', () => {
       'appName', 'toReceive', 'toPay', 'receivedToday', 'customers', 'addCustomer',
       'addEntry', 'giveCredit', 'takePayment', 'amount', 'settings', 'language',
       'largeText', 'exportData', 'importData', 'privacy', 'reminderMsg',
+      'edit', 'editCustomer', 'noResults', 'exportCsv',
     ]) {
       for (const lang of ['en', 'hi', 'pa'] as const) {
         const v = t(lang, key);

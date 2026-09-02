@@ -77,4 +77,39 @@ describe('Munim app user flow', () => {
     const stored = JSON.parse(localStorage.getItem('munim.ledger.v1') || '{}');
     expect(stored.entries).toHaveLength(0);
   });
+
+  it('search with no matches shows a no-results message, not onboarding', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+    await user.type(screen.getByLabelText('Customer name'), 'Ram');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await user.type(screen.getByLabelText('Search customers'), 'zzz');
+    expect(screen.getByText('No customers match your search')).toBeTruthy();
+    expect(screen.queryByText('No customers yet')).toBeNull();
+  });
+
+  it('edits a customer name and reflects it everywhere', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+    await user.type(screen.getByLabelText('Customer name'), 'Ram');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await user.click(screen.getByText('Ram'));
+    await user.click(screen.getByRole('button', { name: 'Edit customer' }));
+    const nameInput = screen.getByLabelText('Customer name') as HTMLInputElement;
+    expect(nameInput.value).toBe('Ram');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Ram Kumar');
+    await user.type(screen.getByLabelText('Phone (optional)'), '9876543210');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Back on the customer view with the updated name.
+    expect(screen.getByText('Ram Kumar')).toBeTruthy();
+    const stored = JSON.parse(localStorage.getItem('munim.ledger.v1') || '{}');
+    expect(stored.customers[0].name).toBe('Ram Kumar');
+    expect(stored.customers[0].phone).toBe('9876543210');
+  });
 });
