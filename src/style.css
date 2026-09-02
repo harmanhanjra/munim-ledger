@@ -259,7 +259,7 @@ body {
   border: 1.5px solid var(--line);
   border-radius: 10px;
   background: var(--paper);
-  color inherit;
+  color: inherit;
 }
 
 .form input:focus,
@@ -317,7 +317,7 @@ body {
   min-height: 48px;
 }
 
-.stn.primary { background: var(--ink); color: #fff; }
+.btn.primary { background: var(--ink); color: #fff; }
 .btn.success { background: var(--ok); color: #fff; }
 .btn.ghost {
   background: none;
