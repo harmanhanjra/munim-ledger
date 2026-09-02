@@ -86,16 +86,25 @@ export function save(data: LedgerData): void {
   localStorage.setItem(STORAGE_KEY, serialize(data));
 }
 
-/** Browser download of a JSON backup. No-op outside the browser. */
-export function exportBackup(data: LedgerData): void {
+/** Browser download of any text payload. No-op outside the browser. */
+export function downloadText(filename: string, content: string, mime: string): void {
   if (typeof document === 'undefined') return;
-  const blob = new Blob([serialize(data)], { type: 'application/json' });
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `munim-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Browser download of a JSON backup. No-op outside the browser. */
+export function exportBackup(data: LedgerData): void {
+  downloadText(
+    `munim-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    serialize(data),
+    'application/json'
+  );
 }
 
 /** Read a File (from <input type=file>) and parse it into LedgerData. */

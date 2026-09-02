@@ -134,10 +134,36 @@ export function lastActivity(entries: Entry[], customerId: string): string | nul
 }
 
 /** WhatsApp deep link for a payment reminder (deterministic message). */
-export function reminderLink(phone: string, name: string, paise: number, message: string): string {
+export function reminderLink(phone: string, message: string): string {
   const digits = phone.replace(/\D/g, '');
   const text = encodeURIComponent(message);
   if (digits.length >= 10) return `https://wa.me/${digits}?text=${text}`;
-  void name;
   return `https://wa.me/?text=${text}`;
+}
+
+/**
+ * Build a CSV export of all entries. Fields are quoted when needed and
+ * spreadsheet-formula prefixes (= + - @) are neutralized to prevent CSV
+ * injection when opened in Excel/Sheets.
+ */
+export function toCsv(customers: Customer[], entries: Entry[]): string {
+  const cell = (raw: string): string => {
+    let v = raw;
+    if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+    if (/[",\n\r]/.test(v)) v = `"${v.replace(/"/g, '""')}"`;
+    return v;
+  };
+  const nameById = new Map(customers.map((c) => [c.id, c.name] as const));
+  const rows = [...entries]
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((e) =>
+      [
+        e.date.slice(0, 10),
+        cell(nameById.get(e.customerId) ?? e.customerId),
+        e.type,
+        (e.amount / 100).toFixed(2),
+        cell(e.note),
+      ].join(',')
+    );
+  return ['date,customer,type,amount_inr,note', ...rows].join('\r\n') + '\r\n';
 }
