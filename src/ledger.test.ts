@@ -9,6 +9,8 @@ import {
   makeId,
   lastActivity,
   reminderLink,
+  toCsv,
+  type Customer,
   type Entry,
 } from './ledger';
 
@@ -125,8 +127,57 @@ describe('misc', () => {
   });
 
   it('reminderLink builds a wa.me link with encoded text', () => {
-    const link = reminderLink('+91 98765 43210', 'Ram', 50000, 'hello ₹500 due');
+    const link = reminderLink('+91 98765 43210', 'hello ₹500 due');
     expect(link.startsWith('https://wa.me/919876543210?text=')).toBe(true);
     expect(link).toContain(encodeURIComponent('hello ₹500 due'));
+  });
+
+  it('reminderLink falls back to share-picker link without full number', () => {
+    expect(reminderLink('12345', 'hi').startsWith('https://wa.me/?text=')).toBe(true);
+  });
+});
+
+describe('toCsv', () => {
+  const customers: Customer[] = [
+    { id: 'c1', name: 'Ram Kumar', phone: '', createdAt: '2026-09-01' },
+    { id: 'c2', name: '=SUM(A1)', phone: '', createdAt: '2026-09-01' },
+  ];
+  const entries: Entry[] = [
+    { id: 'e2', customerId: 'c1', type: 'payment', amount: 5000, note: '', date: '2026-09-02' },
+    {
+      id: 'e1',
+      customerId: 'c1',
+      type: 'credit',
+      amount: 125075,
+      note: 'rice, "5kg"',
+      date: '2026-09-01',
+    },
+    { id: 'e3', customerId: 'c2', type: 'credit', amount: 100, note: '+919876543210', date: '2026-09-03' },
+  ];
+
+  it('has a header, sorts by date ascending, and formats amounts in rupees', () => {
+    const csv = toCsv(customers, entries);
+    const lines = csv.trim().split('\r\n');
+    expect(lines[0]).toBe('date,customer,type,amount_inr,note');
+    expect(lines[1]).toContain('2026-09-01,Ram Kumar,credit,1250.75');
+    expect(lines[2]).toContain('2026-09-02,Ram Kumar,payment,50.00');
+    expect(lines[3]).toContain('2026-09-03');
+  });
+
+  it('quotes fields containing commas or quotes and escapes inner quotes', () => {
+    const csv = toCsv(customers, entries);
+    expect(csv).toContain('"rice, ""5kg"""');
+  });
+
+  it('neutralizes spreadsheet formula prefixes (CSV injection)', () => {
+    const csv = toCsv(customers, entries);
+    expect(csv).toContain("'=SUM(A1)");
+    expect(csv).toContain("'+919876543210");
+    // Amount column is numeric and must NOT be prefixed.
+    expect(csv).toContain('1250.75');
+  });
+
+  it('returns just the header for an empty ledger', () => {
+    expect(toCsv([], [])).toBe('date,customer,type,amount_inr,note\r\n');
   });
 });

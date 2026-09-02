@@ -59,6 +59,10 @@ const en: Dict = {
   reminderMsg: 'Namaste! Gentle reminder from {shop}: amount due is {amount}. Thank you!',
   searchCustomer: 'Search customers',
   today: 'Today',
+  edit: 'Edit',
+  editCustomer: 'Edit customer',
+  noResults: 'No customers match your search',
+  exportCsv: 'Export CSV (entries)',
 };
 
 const hi: Dict = {
@@ -106,6 +110,10 @@ const hi: Dict = {
   reminderMsg: 'नमस्ते! {shop} की ओर से याद दिलाना: {amount} बाकी है। धन्यवाद!',
   searchCustomer: 'ग्राहक खोजें',
   today: 'आज',
+  edit: 'संपादित करें',
+  editCustomer: 'ग्राहक संपादित करें',
+  noResults: 'खोज से कोई ग्राहक नहीं मिला',
+  exportCsv: 'CSV निर्यात (एंट्री)',
 };
 
 const pa: Dict = {
@@ -153,6 +161,10 @@ const pa: Dict = {
   reminderMsg: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ! {shop} ਵੱਲੋਂ ਯਾਦ ਦਿਵਾਉਣਾ: {amount} ਬਾਕੀ ਹੈ। ਧੰਨਵਾਦ!',
   searchCustomer: 'ਗਾਹਕ ਲੱਭੋ',
   today: 'ਅੱਜ',
+  edit: 'ਸੋਧੋ',
+  editCustomer: 'ਗਾਹਕ ਸੋਧੋ',
+  noResults: 'ਖੋਜ ਨਾਲ ਕੋਈ ਗਾਹਕ ਨਹੀਂ ਮਿਲਿਆ',
+  exportCsv: 'CSV ਨਿਰਯਾਤ (ਐਂਟਰੀਆਂ)',
 };
 
 const dicts: Record<Lang, Dict> = { en, hi, pa };
