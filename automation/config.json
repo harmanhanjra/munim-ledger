@@ -1,0 +1,8 @@
+{
+  "keywords": ["agriculture", "accessibility", "offline-first", "healthcare-access", "education"],
+  "maxItemsPerSource": 5,
+  "email": {
+    "enabled": true,
+    "to": ""
+  }
+}
