@@ -142,6 +142,39 @@ export function reminderLink(phone: string, message: string): string {
 }
 
 /**
+ * Build a plain-text customer statement suitable for sharing via WhatsApp/SMS.
+ * Deterministic: same ledger state always produces the same text.
+ */
+export interface StatementInput {
+  name: string;
+  balancePaise: number;
+  entries: Entry[];
+  maxLines?: number;
+  labels: {
+    due: string; // e.g. "You will get"
+    credit: string; // e.g. "Gave credit"
+    payment: string; // e.g. "Received payment"
+  };
+}
+
+export function statementText(input: StatementInput): string {
+  const maxLines = input.maxLines ?? 8;
+  const lines = [`Statement — ${input.name}`];
+  if (input.balancePaise !== 0) {
+    lines.push(`${input.labels.due}: ${formatRupees(input.balancePaise)}`);
+  }
+  const recent = [...input.entries]
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, maxLines);
+  for (const e of recent) {
+    const kind = e.type === 'credit' ? input.labels.credit : input.labels.payment;
+    const note = e.note ? ` · ${e.note}` : '';
+    lines.push(`${e.date.slice(0, 10)} · ${kind} · ${formatRupees(e.amount)}${note}`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * Build a CSV export of all entries. Fields are quoted when needed and
  * spreadsheet-formula prefixes (= + - @) are neutralized to prevent CSV
  * injection when opened in Excel/Sheets.
