@@ -9,6 +9,7 @@ import {
   makeId,
   lastActivity,
   reminderLink,
+  statementText,
   toCsv,
   type Customer,
   type Entry,
@@ -179,5 +180,47 @@ describe('toCsv', () => {
 
   it('returns just the header for an empty ledger', () => {
     expect(toCsv([], [])).toBe('date,customer,type,amount_inr,note\r\n');
+  });
+});
+
+describe('statementText', () => {
+  const labels = { due: 'You will get', credit: 'Gave credit', payment: 'Received payment' };
+  const entries = [
+    entry({ amount: 15000, note: 'rice 5kg', date: '2026-09-01' }),
+    entry({ type: 'payment', amount: 5000, date: '2026-09-02' }),
+    entry({ amount: 10000, date: '2026-09-03' }),
+  ];
+
+  it('includes name, outstanding balance, and newest entries first', () => {
+    const text = statementText({ name: 'Ram Kumar', balancePaise: 20000, entries, labels });
+    const lines = text.split('\n');
+    expect(lines[0]).toBe('Statement — Ram Kumar');
+    expect(lines[1]).toBe('You will get: ₹200');
+    expect(lines[2]).toContain('2026-09-03');
+    expect(lines[2]).toContain('Gave credit');
+    expect(lines[3]).toContain('2026-09-02 · Received payment · ₹50');
+  });
+
+  it('includes entry notes and respects maxLines (newest first)', () => {
+    const full = statementText({ name: 'Ram', balancePaise: 20000, entries, labels });
+    expect(full).toContain('rice 5kg');
+    const capped = statementText({ name: 'Ram', balancePaise: 20000, entries, labels, maxLines: 2 });
+    expect(capped.split('\n')).toHaveLength(4); // header + due + 2 lines
+    // Oldest entry (with the note) is cut when capped.
+    expect(capped).not.toContain('rice 5kg');
+    expect(capped).toContain('2026-09-03');
+  });
+
+  it('omits the due line when settled and is deterministic', () => {
+    const a = statementText({ name: 'Ram', balancePaise: 0, entries, labels });
+    const b = statementText({ name: 'Ram', balancePaise: 0, entries, labels });
+    expect(a).toBe(b);
+    expect(a).not.toContain('You will get');
+    expect(a.startsWith('Statement — Ram\n')).toBe(true);
+  });
+
+  it('uses negative due line when we owe the customer', () => {
+    const text = statementText({ name: 'Ram', balancePaise: -5000, entries: [], labels });
+    expect(text).toContain('You will get: -₹50');
   });
 });
