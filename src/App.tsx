@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   customerBalance,
   formatRupees,
-  lastActivity,
   makeId,
   parseRupees,
   reminderLink,
@@ -17,7 +16,12 @@ import {
   type LedgerData,
 } from './ledger';
 import { downloadText, exportBackup, importBackup, load, save } from './storage';
-import { normalizeLang, t, LANGUAGES, type Lang } from './i18n';
+import { t, type Lang } from './i18n';
+import { loadPrefs, todayIso, type Prefs } from './prefs';
+import Home from './views/Home';
+import CustomerView from './views/CustomerDetail';
+import { AddCustomer, AddEntry, EditCustomer } from './forms';
+import Settings from './Settings';
 
 type View =
   | { name: 'home' }
@@ -27,33 +31,6 @@ type View =
   | { name: 'editCustomer'; id: string }
   | { name: 'settings' };
 
-interface Prefs {
-  lang: Lang;
-  largeText: boolean;
-}
-
-const PREFS_KEY = 'munim.prefs.v1';
-
-function loadPrefs(): Prefs {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY);
-    if (raw) {
-      const p = JSON.parse(raw);
-      return { lang: normalizeLang(p.lang), largeText: Boolean(p.largeText) };
-    }
-  } catch {
-    /* ignore */
-  }
-  const browser = typeof navigator !== 'undefined' ? navigator.language : 'en';
-  return { lang: normalizeLang(browser), largeText: false };
-}
-
-function todayIso(): string {
-  const d = new Date();
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
-}
-
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [data, setData] = useState<LedgerData>(load);
@@ -62,7 +39,7 @@ export default function App() {
   const [toast, setToast] = useState('');
 
   useEffect(() => {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    localStorage.setItem('munim.prefs.v1', JSON.stringify(prefs));
     document.documentElement.lang = prefs.lang;
     document.documentElement.classList.toggle('large-text', prefs.largeText);
   }, [prefs]);
@@ -138,7 +115,7 @@ export default function App() {
     const candidate = { customerId, type, amountPaise: amountPaise ?? 0, note, date };
     const err = validateEntry(candidate);
     if (err) {
-      setToast(tr(err === 'amount' ? 'invalidAmount' : 'invalidAmount'));
+      setToast(tr('invalidAmount'));
       return false;
     }
     const entry: Entry = {
@@ -316,368 +293,3 @@ export default function App() {
     </div>
   );
 }
-
-/* ---------- Home ---------- */
-
-function Home(props: {
-  tr: (k: string, v?: Record<string, string>) => string;
-  totals: { toReceive: number; toPay: number; receivedToday: number };
-  customers: Customer[];
-  entries: Entry[];
-  search: string;
-  setSearch: (s: string) => void;
-  openCustomer: (id: string) => void;
-  onAddCustomer: () => void;
-  onAddEntry: () => void;
-}) {
-  const { tr, totals, customers, entries } = props;
-  return (
-    <>
-      <section className="summary" aria-label={tr('toReceive')}>
-        <div className="summary-card">
-          <span className="summary-label">{tr('toReceive')}</span>
-          <span className="summary-amount danger" data-testid="to-receive">
-            {formatRupees(totals.toReceive)}
-          </span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-label">{tr('receivedToday')}</span>
-          <span className="summary-amount ok" data-testid="received-today">
-            {formatRupees(totals.receivedToday)}
-          </span>
-        </div>
-      </section>
-
-      <p className="privacy-note">{tr('privacy')}</p>
-
-      {customers.length === 0 ? (
-        props.search.trim() ? (
-          <p className="muted no-results" role="status">
-            {tr('noResults')}
-          </p>
-        ) : (
-          <div className="empty">
-            <h2>{tr('emptyTitle')}</h2>
-            <p>{tr('emptyHint')}</p>
-            <button className="btn primary" onClick={props.onAddCustomer}>
-              {tr('addCustomer')}
-            </button>
-          </div>
-        )
-      ) : (
-        <>
-          <input
-            className="search"
-            type="search"
-            placeholder={tr('searchCustomer')}
-            value={props.search}
-            onChange={(e) => props.setSearch(e.target.value)}
-            aria-label={tr('searchCustomer')}
-          />
-          <ul className="customer-list">
-            {customers.map((c) => {
-              const bal = customerBalance(entries, c.id).paise;
-              const last = lastActivity(entries, c.id);
-              return (
-                <li key={c.id}>
-                  <button className="customer-row" onClick={() => props.openCustomer(c.id)}>
-                    <span className="avatar" aria-hidden="true">
-                      {c.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="customer-info">
-                      <span className="customer-name">{c.name}</span>
-                      <span className="customer-meta">{last ? last.slice(0, 10) : ''}</span>
-                    </span>
-                    <span className={`customer-balance ${bal > 0 ? 'danger' : bal < 0 ? 'ok' : 'muted'}`}>
-                      {bal === 0 ? tr('settled') : formatRupees(bal)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <button className="btn ghost" onClick={props.onAddCustomer}>
-            Ôºã {tr('addCustomer')}
-          </button>
-        </>
-      )}
-    </>
-  );
-}
-
-/* ---------- Customer detail ---------- */
-
-function CustomerView(props: {
-  tr: (k: string) => string;
-  customer: Customer;
-  balance: number;
-  entries: Entry[];
-  onBack: () => void;
-  onAdd: (type: EntryType) => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  reminderHref: string | null;
-  statementHref: string | null;
-}) {
-  const { tr, customer, balance, entries } = props;
-  return (
-    <>
-      <button className="btn link" onClick={props.onBack}>
-        ‚Üê {tr('customers')}
-      </button>
-      <section className="card customer-head">
-        <div className="customer-head-row">
-          <h2>{customer.name}</h2>
-          <button className="btn link" onClick={props.onEdit} aria-label={tr('editCustomer')}>
-            ‚úèÔ∏è {tr('edit')}
-          </button>
-        </div>
-        <p className={`balance-line ${balance > 0 ? 'danger' : balance < 0 ? 'ok' : 'muted'}`}>
-          {balance > 0 ? tr('youWillGet') : balance < 0 ? tr('youWillGive') : tr('settled')}:{' '}
-          <strong data-testid="customer-balance">{formatRupees(balance)}</strong>
-        </p>
-        <div className="action-row">
-          <button className="btn primary" onClick={() => props.onAdd('credit')}>
-            {tr('giveCredit')}
-          </button>
-          <button className="btn success" onClick={() => props.onAdd('payment')}>
-            {tr('takePayment')}
-          </button>
-        </div>
-        {props.reminderHref && (
-          <a className="btn ghost" href={props.reminderHref} target="_blank" rel="noreferrer">
-            üì± {tr('reminder')}
-          </a>
-        )}
-        {props.statementHref && (
-          <a className="btn ghost" href={props.statementHref} target="_blank" rel="noreferrer">
-            üì§ {tr('shareStatement')}
-          </a>
-        )}
-      </section>
-
-      <h3 className="section-title">{tr('entries')}</h3>
-      {entries.length === 0 ? (
-        <p className="muted">{tr('noEntries')}</p>
-      ) : (
-        <ul className="entry-list">
-          {entries.map((e) => (
-            <li key={e.id} className="entry-row">
-              <span className="entry-date">{e.date.slice(0, 10)}</span>
-              <span className="entry-note">{e.note || (e.type === 'credit' ? tr('giveCredit') : tr('takePayment'))}</span>
-              <span className={`entry-amount ${e.type === 'credit' ? 'danger' : 'ok'}`}>
-                {e.type === 'credit' ? '+' : '‚àí'}
-                {formatRupees(e.amount)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <button className="btn danger-ghost" onClick={props.onDelete}>
-        üóë {tr('deleteCustomer')}
-      </button>
-    </>
-  );
-}
-
-/* ---------- Forms ---------- */
-
-function AddCustomer(props: {
-  tr: (k: string) => string;
-  onSave: (name: string, phone: string) => boolean;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const { tr } = props;
-  return (
-    <form
-      className="card form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        props.onSave(name, phone);
-      }}
-    >
-      <h2>{tr('addCustomer')}</h2>
-      <label>
-        {tr('customerName')}
-        <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-      </label>
-      <label>
-        {tr('phoneOptional')}
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" type="tel" />
-      </label>
-      <div className="action-row">
-        <button type="submit" className="btn primary">
-          {tr('save')}
-        </button>
-        <button type="button" className="btn ghost" onClick={props.onCancel}>
-          {tr('cancel')}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function AddEntry(props: {
-  tr: (k: string) => string;
-  customers: Customer[];
-  preselected: string | null;
-  initialType?: EntryType;
-  onSave: (customerId: string, type: EntryType, amount: string, note: string, date: string) => boolean;
-  onCancel: () => void;
-}) {
-  const [customerId, setCustomerId] = useState(props.preselected ?? props.customers[0]?.id ?? '');
-  const [type, setType] = useState<EntryType>(props.initialType ?? 'credit');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [date, setDate] = useState(todayIso());
-  const { tr } = props;
-
-  if (props.customers.length === 0) {
-    return <p className="muted">{tr('emptyHint')}</p>;
-  }
-
-  return (
-    <form
-      className="card form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (props.onSave(customerId, type, amount, note, date)) setAmount('');
-      }}
-    >
-      <h2>{tr('addEntry')}</h2>
-      {!props.preselected && (
-        <label>
-          {tr('customers')}
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-            {props.customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <div className="segmented" role="group" aria-label={tr('addEntry')}>
-        <button
-          type="button"
-          className={type === 'credit' ? 'seg active' : 'seg'}
-          onClick={() => setType('credit')}
-          aria-pressed={type === 'credit'}
-        >
-          ‚Üë {tr('giveCredit')}
-        </button>
-        <button
-          type="button"
-          className={type === 'payment' ? 'seg active' : 'seg'}
-          onClick={() => setType('payment')}
-          aria-pressed={type === 'payment'}
-        >
-          ‚Üì {tr('takePayment')}
-        </button>
-      </div>
-      <label>
-        {tr('amount')}
-        <input
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputMode="decimal"
-          required
-          autoFocus
-          placeholder="0.00"
-        />
-      </label>
-      <label>
-        {tr('note')}
-        <input value={note} onChange={(e) => setNote(e.target.value)} />
-      </label>
-      <label>
-        {tr('date')}
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </label>
-      <div className="action-row">
-        <button type="submit" className="btn primary">
-          {tr('save')}
-        </button>
-        <button type="button" className="btn ghost" onClick={props.onCancel}>
-          {tr('cancel')}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function EditCustomer(props: {
-  tr: (k: string) => string;
-  customer: Customer;
-  onSave: (name: string, phone: string) => boolean;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(props.customer.name);
-  const [phone, setPhone] = useState(props.customer.phone);
-  const { tr } = props;
-  return (
-    <form
-      className="card form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        props.onSave(name, phone);
-      }}
-    >
-      <h2>{tr('editCustomer')}</h2>
-      <label>
-        {tr('customerName')}
-        <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-      </label>
-      <label>
-        {tr('phoneOptional')}
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" type="tel" />
-      </label>
-      <div className="action-row">
-        <button type="submit" className="btn primary">
-          {tr('save')}
-        </button>
-        <button type="button" className="btn ghost" onClick={props.onCancel}>
-          {tr('cancel')}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/* ---------- Settings ---------- */
-
-function Settings(props: {
-  tr: (k: string) => string;
-  prefs: Prefs;
-  setPrefs: (fn: (p: Prefs) => Prefs) => void;
-  data: LedgerData;
-  onExport: () => void;
-  onImport: (f: File) => void;
-  onExportCsv: () => void;
-}) {
-  const { tr, prefs } = props;
-  return (
-    <div className="card form">
-      <h2>{tr('settings')}</h2>
-
-      <label>
-        {tr('language')}
-        <select
-          value={prefs.lang}
-          onChange={(e) => props.setPrefs((p) => ({ ...p, lang: e.target.value as Lang }))}
-        >
-          {LANGUAESKõX\
-
-
-HOà
-à‹[€àŸ^O^€ò€Ÿ_Hò[YO^€ò€Ÿ_OÇà€õXô[Bà€‹[€èÇà
-J_Bà‹Ÿ[X›Çà€Xô[ÇÇàXô[€\‹”ò[YOHùŸŸ€K\õ›»èÇà[ú]à\OHò⁄X⁄ÿõﬁÇà⁄X⁄ŸY^‹ôYúÀõ\ôŸU^Bà€ê⁄[ôŸO^ JHOàõ‹ÀúŸ]ôYú 
-
-HOà
-»ããú\ôŸU^àKù\ôŸ]ò⁄X⁄ŸYJJ_BàœÇà›ä	€\ôŸU^	 _Bà€Xô[ÇÇà»€\‹”ò[YOHúŸX›[€ã]]Hèû›ä	ÿòX⁄›\	 _O⁄œÇà]à€\‹”ò[YOHòX›[€ã\õ›»èÇàù]€à€\‹”ò[YOHòùàö[X\ûHà€ê€X⁄œ^‹õ‹Àõ€ë^‹ùOÇà8´!»›ä	Ÿ^‹ù]I _Bàÿù]€èÇàù]€à€\‹”ò[YOHòùà⁄‹›à€ê€X⁄œ^‹õ‹Àõ€ë^‹ù‹›üOÇà<'‰·›ä	Ÿ^‹ù‹›â _Bàÿù]€èÇàXô[€\‹”ò[YOHòùà⁄‹›ö[KXùàèÇà8´!à›ä	⁄[\‹ù]I _Bà[ú]à\OHôö[HÇàXÿŸ\Hò\Xÿ][€ã⁄ú€€ãöú€€àÇà€ê⁄[ôŸO^ JHOà¬à€€ú›àHKù\ôŸ]ôö[\œÀñÃN¬àYà
-äHõ‹Àõ€í[\‹ù
-äN¬àKù\ôŸ]ùò[YHH	…Œ¬à_BàœÇà€Xô[ÇàŸ]èÇÇà€\‹”ò[YOHúö]òXﬁK[õ›Hèû›ä	‹ö]òXﬁI _O‹ÇàŸ]èÇà
-N¬üB
