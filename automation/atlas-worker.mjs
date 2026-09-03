@@ -3,10 +3,14 @@
  * ATLAS hourly cycle worker.
  *
  * Runs one autonomous cycle:
- *   1. Collect research candidates from public APIs (Hacker News, GitHub).
- *   2. Deduplicate against previously seen items.
- *   3. Write a markdown cycle report to knowledge-base/cycles/.
- *   4. Optionally email the report via Gmail SMTP
+ *   1. Collect research candidates from public APIs (Hacker News, GitHub)
+ *      via sources.mjs.
+ *   2. Audit the configured user's public GitHub repos for upgrade candidates.
+ *   3. Maintain knowledge-base/build-queue.json: prioritized upgrade +
+ *      idea candidates for the next agent build cycle.
+ *   4. Deduplicate against previously seen items.
+ *   5. Write a markdown cycle report to knowledge-base/cycles/.
+ *   6. Optionally email the report via Gmail SMTP
  *      (requires GMAIL_USER + GMAIL_APP_PASSWORD env vars; see automation/README.md).
  *
  * Design rules:
@@ -20,29 +24,20 @@ import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectHackerNews, collectGithub, auditRepos, updateBuildQueue } from './sources.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KB_DIR = path.join(ROOT, 'knowledge-base');
 const CYCLES_DIR = path.join(KB_DIR, 'cycles');
 const SEEN_FILE = path.join(KB_DIR, 'seen.json');
+const QUEUE_FILE = path.join(KB_DIR, 'build-queue.json');
 const LOG_FILE = path.join(ROOT, 'automation', 'logs', 'worker.log');
 const CONFIG_FILE = path.join(ROOT, 'automation', 'config.json');
-
-const FETCH_TIMEOUT_MS = 20000;
 
 function log(level, msg) {
   const line = `[${new Date().toISOString()}] [${level}] ${msg}`;
   console.log(line);
   appendFile(LOG_FILE, line + '\n').catch(() => {});
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    headers: { 'User-Agent': 'ATLAS-research-worker/1.0' },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-  return res.json();
 }
 
 async function loadJson(file, fallback) {
@@ -60,48 +55,7 @@ async function loadConfig() {
   return loadJson(CONFIG_FILE, {});
 }
 
-// --- Sources ---------------------------------------------------------------
-
-async function collectHackerNews(limit) {
-  const data = await fetchJson(
-    'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=' + limit
-  );
-  return (data.hits || []).map((h) => ({
-    source: 'hacker-news',
-    title: h.title,
-    url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
-    points: h.points,
-    date: h.created_at,
-    discussion: `https://news.ycombinator.com/item?id=${h.objectID}`,
-  }));
-}
-
-async function collectGithub(keywords, limit) {
-  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const results = [];
-  for (const kw of keywords) {
-    try {
-      const q = encodeURIComponent(`created:>${since} ${kw}`);
-      const data = await fetchJson(
-        `https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=${limit}`
-      );
-      for (const r of data.items || []) {
-        results.push({
-          source: 'github',
-          title: `${r.full_name} ★${r.stargazers_count}`,
-          url: r.html_url,
-          description: r.description || '',
-          date: r.created_at,
-        });
-      }
-    } catch (err) {
-      log('WARN', `github keyword "${kw}" failed: ${err.message}`);
-    }
-  }
-  return results;
-}
-
-// --- Email (optional) ------------------------------------------------------
+// --- Email (optional) --------------------------------------------------------
 
 async function sendReportEmail(subject, body, config) {
   const user = process.env.GMAIL_USER;
@@ -124,17 +78,12 @@ async function sendReportEmail(subject, body, config) {
     secure: true,
     auth: { user, pass },
   });
-  await transport.sendMail({
-    from: `ATLAS Worker <${user}>`,
-    to,
-    subject,
-    text: body,
-  });
+  await transport.sendMail({ from: `ATLAS Worker <${user}>`, to, subject, text: body });
   log('INFO', `report emailed to ${to}`);
   return true;
 }
 
-// --- Main cycle ------------------------------------------------------------
+// --- Main cycle --------------------------------------------------------------
 
 async function main() {
   const started = new Date();
@@ -152,21 +101,42 @@ async function main() {
   let hn = [];
   let gh = [];
   try {
-    hn = await collectHackerNews(limit);
+    hn = await collectHackerNews(limit, log);
   } catch (err) {
     failures.push(`hacker-news: ${err.message}`);
     log('WARN', `hacker-news failed: ${err.message}`);
   }
   try {
-    gh = await collectGithub(config.keywords || [], limit);
+    gh = await collectGithub(config.keywords || [], limit, log);
   } catch (err) {
     failures.push(`github: ${err.message}`);
     log('WARN', `github failed: ${err.message}`);
   }
 
+  let upgrades = [];
+  try {
+    upgrades = await auditRepos(config.githubUser);
+  } catch (err) {
+    failures.push(`repo-audit: ${err.message}`);
+    log('WARN', `repo audit failed: ${err.message}`);
+  }
+
   const all = [...hn, ...gh];
   const fresh = all.filter((item) => item.url && !seenSet.has(item.url));
   for (const item of fresh) seenSet.add(item.url);
+
+  const ideas = gh.slice(0, limit).map((item) => ({
+    kind: 'idea',
+    title: item.title,
+    url: item.url,
+    description: item.description || '',
+    addedAt: new Date().toISOString(),
+  }));
+
+  const queue = await updateBuildQueue(QUEUE_FILE, upgrades, ideas).catch((err) => {
+    log('WARN', `build queue update failed: ${err.message}`);
+    return null;
+  });
 
   // Keep seen-list bounded (last 5000 urls).
   const seenUrls = [...seenSet].slice(-5000);
@@ -193,6 +163,21 @@ async function main() {
     '## Fresh items not seen before',
     '',
     ...(fresh.length ? fresh.map((f) => `- [${f.title}](${f.url}) (${f.source})`) : ['(none)']),
+    '',
+    `## Repo health audit (${config.githubUser || 'not configured'})`,
+    '',
+    ...(upgrades.length
+      ? upgrades
+          .slice(0, 20)
+          .map(
+            (u) =>
+              `- [${u.repo}](${u.url}) — ${u.reasons.join(', ')} (last push ${u.pushedDaysAgo}d ago)`
+          )
+      : ['(no issues found or audit unavailable)']),
+    '',
+    `## Build queue (upgrade: ${queue ? queue.upgradeCandidates.length : '?'}, ideas: ${queue ? queue.ideaCandidates.length : '?'})`,
+    '',
+    'Next agent build cycle should pick from knowledge-base/build-queue.json.',
     '',
   ];
   const report = lines.join('\n');

@@ -1,6 +1,7 @@
 {
   "keywords": ["agriculture", "accessibility", "offline-first", "healthcare-access", "education"],
   "maxItemsPerSource": 5,
+  "githubUser": "harmanhanjra",
   "email": {
     "enabled": true,
     "to": ""

@@ -1,6 +1,6 @@
 # ATLAS Automation
 
-Hourly autonomous research + reporting cycle for the ATLAS system.
+Hourly autonomous research + **build-output** cycle for the ATLAS system.
 
 ## What it does
 
@@ -9,11 +9,26 @@ Every hour, `automation/atlas-worker.mjs` runs one cycle:
 1. **Collects research candidates** from public APIs:
    - Hacker News front page (Algolia API)
    - GitHub: newest repositories matching the keywords in `config.json`
-2. **Deduplicates** against everything already seen (`knowledge-base/seen.json`,
-   bounded to the last 5000 URLs).
-3. **Writes a markdown report** to `knowledge-base/cycles/cycle-<timestamp>.md`.
-4. **Emails the report** (only when Gmail credentials are configured — see below).
-5. **Logs** every cycle to `automation/logs/worker.log`.
+2. **Audits the GitHub account** (`githubUser` in `config.json`): classifies
+   public repos with missing license/description, stale pushes (>60 days),
+   or empty forks as upgrade candidates. Private repos need agent sessions
+   (authenticated integration) — the worker uses the unauthenticated API.
+3. **Maintains `knowledge-base/build-queue.json`**: a persistent, deduped,
+   prioritized queue of upgrade + idea candidates that every agent build
+   cycle must consume (pick the top item, ship a real feature/fix, push).
+4. **Deduplicates** research items against everything already seen
+   (`knowledge-base/seen.json`, bounded to the last 5000 URLs).
+5. **Writes a markdown report** to `knowledge-base/cycles/cycle-<timestamp>.md`
+   including the repo-health section and build-queue counts.
+6. **Emails the report** (only when Gmail credentials are configured — see below).
+7. **Logs** every cycle to `automation/logs/worker.log`.
+
+### Build-output contract
+
+Research alone is not an acceptable cycle outcome. Each cycle must produce
+code output — either a new project passing the quality gates or a tested,
+pushed improvement to an existing repo. The cron worker feeds candidates;
+agent sessions execute the builds and verify them (tests + CI must be green).
 
 Failures in one source never abort the cycle; they are recorded in the report
 and log. No secrets are ever written to the log.
