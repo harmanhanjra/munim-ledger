@@ -6,6 +6,7 @@ import {
   makeId,
   parseRupees,
   reminderLink,
+  statementText,
   toCsv,
   totals,
   validateCustomer,
@@ -218,6 +219,16 @@ export default function App() {
               .filter((e) => e.customerId === c.id)
               .sort((a, b) => (a.date < b.date ? 1 : -1));
             const msg = tr('reminderMsg', { shop: tr('appName'), amount: formatRupees(bal) });
+            const stmt = statementText({
+              name: c.name,
+              balancePaise: bal,
+              entries,
+              labels: {
+                due: bal < 0 ? tr('youWillGive') : tr('youWillGet'),
+                credit: tr('giveCredit'),
+                payment: tr('takePayment'),
+              },
+            });
             return (
               <CustomerView
                 tr={tr}
@@ -229,6 +240,7 @@ export default function App() {
                 onEdit={() => setView({ name: 'editCustomer', id: c.id })}
                 onDelete={() => deleteCustomer(c.id)}
                 reminderHref={bal > 0 ? reminderLink(c.phone, msg) : null}
+                statementHref={entries.length > 0 ? reminderLink(c.phone, stmt) : null}
               />
             );
           })()}
@@ -405,6 +417,7 @@ function CustomerView(props: {
   onEdit: () => void;
   onDelete: () => void;
   reminderHref: string | null;
+  statementHref: string | null;
 }) {
   const { tr, customer, balance, entries } = props;
   return (
@@ -434,6 +447,11 @@ function CustomerView(props: {
         {props.reminderHref && (
           <a className="btn ghost" href={props.reminderHref} target="_blank" rel="noreferrer">
             ğŸ“± {tr('reminder')}
+          </a>
+        )}
+        {props.statementHref && (
+          <a className="btn ghost" href={props.statementHref} target="_blank" rel="noreferrer">
+            ğŸ“¤ {tr('shareStatement')}
           </a>
         )}
       </section>
@@ -651,46 +669,15 @@ function Settings(props: {
           value={prefs.lang}
           onChange={(e) => props.setPrefs((p) => ({ ...p, lang: e.target.value as Lang }))}
         >
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          {LANGUAESK›X\
 
-      <label className="toggle-row">
-        <input
-          type="checkbox"
-          checked={prefs.largeText}
-          onChange={(e) => props.setPrefs((p) => ({ ...p, largeText: e.target.checked }))}
-        />
-        {tr('largeText')}
-      </label>
-
-      <h3 className="section-title">{tr('backup')}</h3>
-      <div className="action-row">
-        <button className="btn primary" onClick={props.onExport}>
-          â¬‡ {tr('exportData')}
-        </button>
-        <button className="btn ghost" onClick={props.onExportCsv}>
-          ğŸ“„ {tr('exportCsv')}
-        </button>
-        <label className="btn ghost file-btn">
-          â¬† {tr('importData')}
-          <input
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) props.onImport(f);
-              e.target.value = '';
-            }}
-          />
-        </label>
-      </div>
-
-      <p className="privacy-note">{tr('privacy')}</p>
-    </div>
-  );
-}
+
+HOˆ
+ˆÜ[ÛˆÙ^O^Û˜ÛÙ_H˜[YO^Û˜ÛÙ_O‚ˆÛ›X™[BˆÛÜ[Û‚ˆ
+J_BˆÜÙ[Xİ‚ˆÛX™[‚‚ˆX™[Û\ÜÓ˜[YOHÙÙÛK\›İÈ‚ˆ[œ]ˆ\OH˜ÚXÚØ›Ş‚ˆÚXÚÙY^Ü™YœË›\™ÙU^BˆÛÚ[™ÙO^ÊJHOˆ›ÜËœÙ]™YœÊ
+
+HOˆ
+È‹‹œ\™ÙU^ˆK\™Ù]˜ÚXÚÙYJJ_BˆÏ‚ˆİŠ	Û\™ÙU^	Ê_BˆÛX™[‚‚ˆÈÛ\ÜÓ˜[YOHœÙXİ[Û‹]]HİŠ	Ø˜XÚİ\	Ê_OÚÏ‚ˆ]ˆÛ\ÜÓ˜[YOH˜Xİ[Û‹\›İÈ‚ˆ]ÛˆÛ\ÜÓ˜[YOH˜ˆš[X\HˆÛÛXÚÏ^Ü›ÜË›Û‘^ÜO‚ˆ8«!ÈİŠ	Ù^Ü]IÊ_BˆØ]Û‚ˆ]ÛˆÛ\ÜÓ˜[YOH˜ˆÚÜİˆÛÛXÚÏ^Ü›ÜË›Û‘^ÜÜİŸO‚ˆ<'äáİŠ	Ù^ÜÜİ‰Ê_BˆØ]Û‚ˆX™[Û\ÜÓ˜[YOH˜ˆÚÜİš[KXˆ‚ˆ8«!ˆİŠ	Ú[\Ü]IÊ_Bˆ[œ]ˆ\OH™š[H‚ˆXØÙ\H˜\XØ][Û‹ÚœÛÛ‹šœÛÛˆ‚ˆÛÚ[™ÙO^ÊJHOˆÂˆÛÛœİˆHK\™Ù]™š[\ÏË–ÌNÂˆYˆ
+ŠH›ÜË›Û’[\Ü
+ŠNÂˆK\™Ù]˜[YHH	ÉÎÂˆ_BˆÏ‚ˆÛX™[‚ˆÙ]‚‚ˆÛ\ÜÓ˜[YOHœš]˜XŞK[›İHİŠ	Üš]˜XŞIÊ_OÜ‚ˆÙ]‚ˆ
+NÂŸB

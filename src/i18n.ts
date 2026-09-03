@@ -63,6 +63,7 @@ const en: Dict = {
   editCustomer: 'Edit customer',
   noResults: 'No customers match your search',
   exportCsv: 'Export CSV (entries)',
+  shareStatement: 'Share statement',
 };
 
 const hi: Dict = {
@@ -114,6 +115,7 @@ const hi: Dict = {
   editCustomer: 'ग्राहक संपादित करें',
   noResults: 'खोज से कोई ग्राहक नहीं मिला',
   exportCsv: 'CSV निर्यात (एंट्री)',
+  shareStatement: 'स्टेटमेंट साझा करें',
 };
 
 const pa: Dict = {
@@ -165,6 +167,7 @@ const pa: Dict = {
   editCustomer: 'ਗਾਹਕ ਸੋਧੋ',
   noResults: 'ਖੋਜ ਨਾਲ ਕੋਈ ਗਾਹਕ ਨਹੀਂ ਮਿਲਿਆ',
   exportCsv: 'CSV ਨਿਰਯਾਤ (ਐਂਟਰੀਆਂ)',
+  shareStatement: 'ਸਟੇਟਮੈਂਟ ਸਾਂਝਾ ਕਰੋ',
 };
 
 const dicts: Record<Lang, Dict> = { en, hi, pa };
