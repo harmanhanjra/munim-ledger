@@ -67,8 +67,8 @@ npm run build     # production build to dist/
 npm run preview   # serve the production build locally
 ```
 
-Note: no `package-lock.json` is committed at this stage; `npm install`
-resolves current compatible versions. Pin the lock before production reuse.
+The committed `package-lock.json` pins the resolved dependency tree. Use
+`npm ci` for reproducible verification matching GitHub Actions.
 
 ## Deployment
 
@@ -96,6 +96,8 @@ npm test
 - Reminder sharing opens WhatsApp with a pre-filled message — nothing is sent
   without an explicit user action
 - CSV export neutralizes spreadsheet formula prefixes to prevent CSV injection
+- CI installs the pinned lockfile, blocks high-severity dependency advisories,
+  and runs with read-only repository permissions
 
 ## Limitations
 
